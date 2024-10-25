@@ -1,0 +1,111 @@
+---
+title: "figure1"
+output: html_notebook
+---
+
+Analyze ecotype x photoperiod variation in both seasonal (diapause incidence, PDD time) AND daily (activity phase, activity period length) of #O. nubilalis#, as visualized in Figure 1
+
+Read in associated packages
+```{r}
+library('car')
+library('emmeans')
+library('ggplot2')
+library('ggpubr')
+library('readr')
+library('tidyverse')
+
+```
+
+
+p(diapause) = ecotype x photoperiod (Figure 1A)
+```{r}
+
+```
+
+activity time = ecotype x photoperiod (Figure 1C)
+```{r}
+phase_df <- read_csv("../data/activity_summary.csv", 
+                         col_types = cols(X1 = col_skip()))
+
+phase_df$strain = as.factor(phase_df$strain)
+phase_df$strain = relevel(phase_df$strain, ref = 'univoltine')
+
+#lm
+m1 = lm(peak_after_day ~ daylength+strain, data = phase_df)
+car::Anova(m1)
+m1_contrast = emmeans::contrast(emmeans::emmeans(m1, ~ strain, type = 'response'), method = 'pairwise')
+summary(m1_contrast, infer = c(TRUE, TRUE))
+
+figure1c = ggplot(data=phase_df,
+                 aes(x=daylength, y=peak_after_day, color=strain)) +
+  geom_jitter(size=2, alpha=0.5, position = position_jitter(width = 0.04, height = 0.02)) +
+  geom_smooth(method='lm', se=TRUE, aes(fill = strain),alpha = 0.2, size = 0.75) +
+  scale_fill_manual(values = c('univoltine' = "#F8766D", 'bivoltine' = "#00BFC4"),
+                     labels = c('univoltine' = "Univoltine",
+                                'bivoltine' = "Bivoltine")) +
+  scale_color_manual(values = c('univoltine' = "#F8766D", 'bivoltine' = "#00BFC4"),
+                     labels = c('univoltine' = "Univoltine",
+                                'bivoltine' = "Bivoltine")) +
+  theme_bw() +
+  theme(text = element_text(size = 14, family = "sans", color = 'black'),
+        strip.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "top",
+        legend.title = element_blank()) +
+  ylab("Peak Activity (after dark)") + xlab("Photoperiod (hours)") +
+  scale_x_continuous(breaks = c(12, 13, 14, 15, 16), expand = c(0.0,0), limits = c(11.9, 16.1)) +
+  scale_y_continuous(breaks = c(4,6,8), expand = c(0,0), limits = c(3,9)) +
+  guides(fill = 'none')
+
+```
+
+free-running period length = ecotype (Figure 1D)
+```{r}
+circ_df <- read_csv("../data/activity_circadian.csv")
+circ_df$strain = as.factor(circ_df$strain)
+circ_df$strain = relevel(circ_df$strain, ref = 'univoltine')
+
+t.test(data = circ_df, period ~ strain)
+
+figure1d = ggplot(circ_df,
+                  aes(x=strain, y=period, color = strain)) +
+  geom_boxplot(size = 0.5) +
+  geom_point(aes(x = strain, y = period, color = strain), alpha=0.5, size=2) +
+  theme_bw() +
+  ylab("Period (hours)") + xlab("Population") +
+  scale_color_manual(values = c(
+    'bivoltine' = "#00BFC4",
+    'univoltine' = "#F8766D"),
+    labels = c(
+      'bivoltine' = 'Bivoltine',
+      'univoltine' = 'Univoltine',
+    name = "")) +
+  theme(text = element_text(size = 14, family = "sans", color = 'black'),
+        strip.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "top",
+        legend.title = element_blank()) +
+  scale_x_discrete(breaks = c('bivoltine', 'univoltine'), limits = c('bivoltine', 'univoltine'),
+                   labels = c('bivoltine' = 'Bivoltine', 'univoltine' = 'Univoltine'),
+                   name = "Population") +
+  scale_y_continuous(breaks = seq(21, 23,  by = 1), expand = c(0,0), limits = c(20.5,23.5),
+                   name = 'Period Length (hours)') +
+  annotate("text", x=1.5, y=23.25, label= "**", size = 4)
+
+```
+
+
+Build plot (Figure 1)
+```{r}
+figure1 = ggarrange(figure1a,figure1b,
+                    figure1c,figure1d,
+                    ncol = 2, nrow = 2,
+                    common.legend = TRUE, legend = 'top', align = 'hv')
+
+
+ggsave("figure1.png", plot = figure1, width = 6, height = 6, dpi = 600, units=c('in'),
+               bg='white')
+```
+

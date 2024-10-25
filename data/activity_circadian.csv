@@ -1,0 +1,7 @@
+first_peak_period,first_peak_rel_power,is_rhythmic,region_id,species,pi,sex,strain,period
+81000,166,TRUE,1,O_nubilalis,mothra01,male,bivoltine,22.5
+81360,254,TRUE,5,O_nubilalis,plantcam02,male,bivoltine,22.6
+82800,176,TRUE,6,O_nubilalis,plantcam03,male,bivoltine,23
+76680,197,TRUE,1,O_nubilalis,mothra01,male,univoltine,21.3
+75960,383,TRUE,5,O_nubilalis,plantcam02,male,univoltine,21.1
+77400,356,TRUE,6,O_nubilalis,plantcam03,male,univoltine,21.5
