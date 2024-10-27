@@ -6,7 +6,7 @@ output: html_notebook
 Analyze ecotype x photoperiod variation in both seasonal (diapause incidence, PDD time) AND daily (activity phase, activity period length) of #O. nubilalis#, as visualized in Figure 1
 
 Read in associated packages
-```{r}
+```{r, quiet = TRUE}
 library('car')
 library('emmeans')
 library('ggplot2')
@@ -22,10 +22,17 @@ p(diapause) = ecotype x photoperiod (Figure 1A)
 
 ```
 
+p(PDD) = ecotype x photoperiod (Figure 1B)
+```{r}
+
+```
+
+
 activity time = ecotype x photoperiod (Figure 1C)
 ```{r}
 phase_df <- read_csv("../data/activity_summary.csv", 
-                         col_types = cols(X1 = col_skip()))
+                         col_types = cols(...1 = col_skip()),
+                     show_col_types = FALSE)
 
 phase_df$strain = as.factor(phase_df$strain)
 phase_df$strain = relevel(phase_df$strain, ref = 'univoltine')
@@ -105,7 +112,7 @@ figure1 = ggarrange(figure1a,figure1b,
                     common.legend = TRUE, legend = 'top', align = 'hv')
 
 
-ggsave("figure1.png", plot = figure1, width = 6, height = 6, dpi = 600, units=c('in'),
+ggsave("../plots/figure1.png", plot = figure1, width = 6, height = 6, dpi = 600, units=c('in'),
                bg='white')
 ```
 
