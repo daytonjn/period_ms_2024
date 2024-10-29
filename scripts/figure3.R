@@ -21,14 +21,14 @@ period_2022 <- read_csv("./data/period_2022.csv")[,-1]
 period_all <- rbind(period_2022, period_2024)
 unique(period_all$family)
 
-period_all$family = as.factor(period_all$family)
+period_all$family = as.factor(period_all$family) #group by father's family line
 levels(period_all$family) = list(
   A = 'ah18',
   B = 'dh63',
   C = 'a17_h',
   D = 'ch27',
-  E = c('CD', 'CH', 'CI', 'CJ', 'CK'), #same father
-  F = c('CE', 'CF', 'CG', 'CO') #same father
+  E = c('CD', 'CH', 'CI', 'CJ', 'CK'),
+  F = c('CE', 'CF', 'CG', 'CO')
 )
 
 period_all$period = as.factor(period_all$period)

@@ -1,0 +1,380 @@
+---
+title: "figure3a"
+output: html_notebook
+---
+
+#Night interruption experiments 
+
+```{r, quiet=TRUE}
+library(readr)
+library(tidyverse)
+library(bbmle)      # for ICtab()
+library(pscl)       # for zi models
+library(MASS)       # for glm.nb()
+library(car)        # for Anova()
+library(lme4)       # for lmer() and glmer() 
+library(emmeans)    # for multiple comparisons!
+library(readr)
+library(ggpubr)
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+```
+
+#Effect of night interruption pulse on diapause incidence, Nov. 2022
+Population: Bivoltine (LF_short)
+```{r}
+interrupt_lf = read.csv("../data/interruption_202211.csv")
+
+filt_lf = interrupt_lf %>% filter(cutoff_status != 'dead')
+filt_lf$treatment = factor(filt_lf$treatment, levels = c("12L:12D", "12L:6D:1L:5D", "12L:7D:1L:4D",
+                                                         "12L:8D:1L:3D", "12L:9D:1L:2D", "12L:10D:1L:1D"))
+
+filt_lf$treatment = relevel(filt_lf$treatment, ref = '12L:12D')
+
+sum_lf = filt_lf %>% group_by(bkgrnd, treatment) %>%
+  summarize(
+    n = n(),
+    larva_count = sum(cutoff_status=="larva"),
+    pupa_count = sum(cutoff_status=="pupa"),
+    larva8_count = sum(day8_status == "larva"),
+    pupa8_count = sum(day8_status == "pupa"),
+    dia_mu = round(larva_count/(larva_count+pupa_count),3),
+    dia_lb = round(binom.test(larva_count, n, 0.95)$conf.int[1], 3), #exact binomial to calculate 95% CI
+    dia_ub = round(binom.test(larva_count, n, 0.95)$conf.int[2], 3)
+  )
+
+mlf = glm(cbind(larva_count, pupa_count) ~ treatment, family = binomial(link = 'logit'), data = sum_lf)
+summary(mlf)
+car::Anova(mlf)
+mlf_emms = emmeans(mlf, ~treatment, ref = '12L:12D')
+mlf_emms
+mlf_mc = multcomp::cld(mlf_emms, adjust = 'none', Letters = letters, decreasing=TRUE) %>%
+  mutate(.group = gsub(" ", "", .group))
+mlf_mc #change "12L:10D:1L:1D" and "12L:6D:1L:5D" to a
+mlf_mc$.group[which(mlf_mc$treatment == '12L:10D:1L:1D')] = "a"
+mlf_mc$.group[which(mlf_mc$treatment == '12L:6D:1L:5D')] = "a"
+summary(contrast(mlf_emms), infer = c(TRUE,TRUE))
+
+p_lf = ggplot(sum_lf, aes(x = treatment, y = dia_mu, group = 1, ymin = dia_lb, ymax = dia_ub, color = bkgrnd, fill = bkgrnd)) +
+  geom_point(size = 2) +
+  geom_ribbon(alpha = 0.2, color = NA) +
+  geom_text(data = mlf_mc, aes(x = treatment, y = rep(1.05, nrow(mlf_mc)), label = .group, color = bkgrnd),
+               inherit.aes = FALSE, color = 'black') +
+  scale_x_discrete(breaks = c("12L:12D", "12L:6D:1L:5D", "12L:7D:1L:4D",
+                                "12L:8D:1L:3D", "12L:9D:1L:2D", "12L:10D:1L:1D"),
+                   labels = c("0", "6", "7", "8", "9", "10"),
+                   name = "Onset of 1 hr Light Pulse") +
+  scale_y_continuous(name = "Diapause Incidence",
+                     limits = c(0,1.05), breaks = seq(0,1,by=0.2),
+                     labels = scales::percent_format()) +
+  labs(x = "Photoperiod") + geom_line() +
+  theme_bw() +
+    theme(text = element_text(size = 14, family = "sans", color = 'black'),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "top") +
+      scale_color_manual(name = '',
+                     values = c("lf_short" = '#00BFC4'),
+                     labels = c("lf_short" = "Bivoltine")) +
+     scale_fill_manual(name = '',
+                     values = c("lf_short" = '#00BFC4'),
+                     labels = c("lf_short" = "Bivoltine")) +
+  guides(fill = 'none')
+
+```
+
+Treatments 
+```{r}
+lf_exp = read.csv("../data/interruption_202211_matrix.csv")
+str(lf_exp)
+lf_exp$type = as.factor(lf_exp$type)
+lf_exp$treatment = as.factor(lf_exp$treatment)
+lf_exp$treatment = factor(lf_exp$treatment,
+                              levels = c(
+                                "12L:10D:1L:1D",
+                                "12L:9D:1L:2D",
+                                "12L:8D:1L:3D",
+                                "12L:7D:1L:4D",
+                                "12L:6D:1L:5D",
+                                "12L:12D"
+                              ))
+# Plot using ggplot2
+p_lf_exp =ggplot(lf_exp, aes(y = treatment, xmin = start, xmax = end, fill = type)) +
+  geom_rect(aes(xmin = start, xmax = end,
+                ymin = as.numeric(treatment) - 0.48,
+                ymax = as.numeric(treatment) + 0.48),
+            alpha = 0.5) +
+  scale_fill_manual(values = c("light" = "yellow", "dark" = "black")) +
+  scale_x_continuous(breaks = seq(12, 24, by = 4), limits = c(0,24), expand = c(0,0),
+                     name = "Zeitgeber Time (hours)") +
+  scale_y_discrete(breaks = c("12L:10D:1L:1D",
+                                "12L:9D:1L:2D",
+                                "12L:8D:1L:3D",
+                                "12L:7D:1L:4D",
+                                "12L:6D:1L:5D",
+                                "12L:12D"),
+                   labels = c("12L:10D:1L:1D" = "10",
+                                "12L:9D:1L:2D" = "9",
+                                "12L:8D:1L:3D" = "8",
+                                "12L:7D:1L:4D" = "7",
+                                "12L:6D:1L:5D" = "6",
+                                "12L:12D" = "0"),
+                   name = "Treatment") +
+  theme_bw() +
+  theme(
+    text = element_text(size = 14, family = "sans", color = 'black'),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "top",
+    legend.title = element_blank(),
+    axis.ticks.y = element_blank()) +
+  guides(fill = 'none')
+
+final_lf = ggpubr::ggarrange(p_lf, p_lf_exp, ncol = 2, align = 'v')
+
+ggsave("../plots/figureS3.png", plot = final_lf, width = 6, height = 3, dpi = 800, units=c('in'), bg='white')
+
+
+```
+
+#P(diapause) = night interruption pulse X genetic background, Dec. 2022
+```{r}
+interrupt_winter = read.csv("../data/interruption_202212.csv")
+
+filt_winter = interrupt_winter %>%
+  filter(cutoff_status != 'dead',
+         treatment != "12L:7D:1.5L:3.5D",
+         #be_px4 were not phenotyped at this condition, it was 100% diapause incidence for other treatments
+         family != 'b' & family != 'be') %>% #remove dead individuals from counts AND family b from be (they were 100% ND at all tested conditions)
+  droplevels()
+filt_winter$treatment = factor(filt_winter$treatment,
+                               levels = c("12L:12D",
+                                          "12L:7D:1.5L:3.5D",
+                                          "12L:7.5D:1.5L:3D",
+                                          "12L:8D:1.5L:2.5D",
+                                          "12L:8.5D:1.5L:2D",
+                                          "12L:9D:1.5L:1.5D"))
+
+filt_winter$treatment = relevel(filt_winter$treatment, ref = '12L:12D')
+filt_winter$bkgrnd = as.factor(filt_winter$bkgrnd)
+
+filt_winter %>% group_by(bkgrnd, treatment) %>%
+  summarize(
+    n = n(),
+    larva_count = sum(cutoff_status=="larva"),
+    pupa_count = sum(cutoff_status=="pupa" | cutoff_status=="moth"),
+    dia_mu = round(larva_count/(larva_count+pupa_count),3),
+    dia_lb = round(binom.test(larva_count, n, 0.95)$conf.int[1], 3), #exact binomial to calculate 95% CI
+    dia_ub = round(binom.test(larva_count, n, 0.95)$conf.int[2], 3)
+  )
+
+
+sum_winter = filt_winter %>% group_by(bkgrnd, treatment) %>%
+  summarize(
+    n = n(),
+    larva_count = sum(cutoff_status=="larva"),
+    pupa_count = sum(cutoff_status=="pupa" | cutoff_status=="moth"),
+    dia_mu = round(larva_count/(larva_count+pupa_count),3),
+    dia_lb = round(binom.test(larva_count, n, 0.95)$conf.int[1], 3), #exact binomial to calculate 95% CI
+    dia_ub = round(binom.test(larva_count, n, 0.95)$conf.int[2], 3)
+  )
+
+
+m1 = glm(cbind(larva_count, pupa_count) ~ treatment*bkgrnd, family = binomial(link = 'logit'), data = sum_winter)
+summary(m1)
+car::Anova(m1)
+emmeans(m1, ~ bkgrnd, type = 'response', ref = '12L:12D')
+m1_emms = emmeans(m1, ~treatment | bkgrnd, type = 'response')
+m1_emms
+m1_mc = multcomp::cld(m1_emms, by = "bkgrnd", adjust = 'none', Letters = letters, decreasing=TRUE) %>%
+  mutate(.group = gsub(" ", "", .group))
+m1_mc
+
+
+summary(contrast(emmeans(m1, ~bkgrnd | treatment, type = 'response')), infer = c(TRUE, TRUE))
+p  = ggplot(sum_winter, aes(x = treatment, y = dia_mu, group = 1, ymin = dia_lb, ymax = dia_ub, color = bkgrnd)) +
+  geom_point(size = 3) +
+  geom_errorbar(width = 0.2) + facet_wrap(~bkgrnd) +
+  scale_y_continuous(name = "Diapause Incidence",
+                     limits = c(0,1.05), breaks = seq(0,1,by=0.2),
+                     labels = scales::percent_format()) +
+  scale_x_discrete(breaks = c("12L:12D", "12L:7D:1.5L:3.5D","12L:7.5D:1.5L:3D",
+                              "12L:8D:1.5L:2.5D", "12L:8.5D:1.5L:2D","12L:9D:1.5L:1.5D"),
+                   labels = c("0", "7", "7.5", "8", "8.5", "9"),
+                   name = "Onset of 1.5 hr Light Pulse") +
+  geom_line() +
+  theme_bw() +
+    theme(text = element_text(size = 14, family = "sans", color = 'black'),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "top",
+        legend.title = element_blank()) + geom_text(data = m1_mc, aes(x = treatment, y = rep(1.05, 15), label = .group, color = bkgrnd),
+               inherit.aes = FALSE, color = 'black')
+ 
+ 
+ #emmeans() gives incorrect test results for comparisons between samples where one or both probabilities are 1.0 or 0.0
+ #adjusting with prop.test()
+sum_winter
+#be 8.5 vs. 7.5 (dif) and 12:8 vs. 12:8.5 (same) and 12:8.5 vs. 9 (same)
+prop.test(c(0,10), c(10,12))
+prop.test(c(7, 0), c(17,10))
+prop.test(c(0,1), c(10, 6))
+#be 12(a), 7(a), 8(b), 8.5(b), 9(b)
+m1_mc$.group[which(m1_mc$treatment == '12L:12D' & m1_mc$bkgrnd == 'be')] = "a"
+m1_mc$.group[which(m1_mc$treatment == '12L:8.5D:1.5L:2D' & m1_mc$bkgrnd == 'be')] = "b"
+
+#be_px4 12:8 vs. 12:9 (diff), so 12:9 should be c
+prop.test(c(7,0), c(37,38))
+m1_mc$.group[which(m1_mc$treatment == '12L:9D:1.5L:1.5D' & m1_mc$bkgrnd == 'be_px4')] = "c"
+
+#uz 12:7.5 vs. 12:9 (same) and 12:12 vs. 12:9 (different)
+prop.test(c(18, 11 ), c(23,22 ))
+prop.test(c(23, 11 ), c(23,22 ))
+m1_mc$.group[which(m1_mc$treatment == '12L:12D' & m1_mc$bkgrnd == 'uz')] = "a"
+#uz 12 (a), 7.5 (ab), 8(c), 8.5(c), 9 (bc)
+m1_mc$.group[which(m1_mc$treatment == '12L:7.5D:1.5L:3D' & m1_mc$bkgrnd == 'uz')] = "ab"
+m1_mc$.group[which(m1_mc$treatment == '12L:8D:1.5L:2.5D' & m1_mc$bkgrnd == 'uz')] = "c"
+m1_mc$.group[which(m1_mc$treatment == '12L:8.5D:1.5L:2D' & m1_mc$bkgrnd == 'uz')] = "c"
+m1_mc$.group[which(m1_mc$treatment == '12L:9D:1.5L:1.5D' & m1_mc$bkgrnd == 'uz')] = "bc"
+
+
+bkgrnd.labs_m1 = c("Bivoltine","Hemizygous Males", "Univoltine")
+names(bkgrnd.labs_m1) = c("be", "be_px4", "uz")
+
+p_wt  = ggplot(sum_winter %>% filter(bkgrnd != 'be_px4') %>% droplevels(),
+            aes(x = treatment, y = dia_mu,
+                ymin = dia_lb,
+                ymax = dia_ub, color = bkgrnd, fill = bkgrnd)) +
+  geom_point(aes(x = treatment,
+                 y = dia_mu,
+                 color = bkgrnd), size = 2,
+             alpha = 0.5) +
+  geom_ribbon(aes(group = bkgrnd, fill = bkgrnd), alpha = 0.2, color = NA, show.legend = FALSE) +
+  scale_y_continuous(name = "Diapause Incidence",
+                     limits = c(0,1.05), breaks = seq(0,1,by=0.2),
+                     labels = scales::percent_format()) +
+  scale_x_discrete(breaks = c("12L:12D", "12L:7D:1.5L:3.5D","12L:7.5D:1.5L:3D",
+                              "12L:8D:1.5L:2.5D", "12L:8.5D:1.5L:2D","12L:9D:1.5L:1.5D"),
+                   labels = c("0", "7", "7.5", "8", "8.5", "9"),
+                   name = "Onset of 1.5 hr Light Pulse") +
+  geom_line(aes(group = bkgrnd, color = bkgrnd)) +
+  theme_bw() +
+  theme(text = element_text(size = 14, family = "sans", color = 'black'),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = 'top') +
+    scale_color_manual(name = '',
+                     values = c("be" = '#00BFC4', "uz" = '#F8766D'),
+                     labels = c("be" = "Bivoltine", "uz" = "Univoltine")) +
+     scale_fill_manual(name = '',
+                     values = c("be" = '#00BFC4', "uz" = '#F8766D'),
+                     labels = c("be" = "Bivoltine", "uz" = "Univoltine")) +
+  guides(fill = 'none')
+
+p_wt
+
+```
+
+temp = store the new way to display effect of mutation in figure 3a
+```{r}
+temp = sum_winter %>% filter(bkgrnd != 'be') %>% droplevels()
+p  = ggplot(temp,
+            aes(x = treatment, y = dia_mu,
+                ymin = dia_lb,
+                ymax = dia_ub, color = bkgrnd, fill = bkgrnd)) +
+  geom_point(aes(x = treatment,
+                 y = dia_mu,
+                 color = bkgrnd), size = 2,
+             alpha = 0.5) +
+  geom_ribbon(aes(group = bkgrnd, fill = bkgrnd), alpha = 0.2, color = NA, show.legend = FALSE) +
+  scale_y_continuous(name = "Diapause Incidence",
+                     limits = c(0,1.05), breaks = seq(0,1,by=0.2),
+                     labels = scales::percent_format()) +
+  scale_x_discrete(breaks = c("12L:12D", "12L:7D:1.5L:3.5D","12L:7.5D:1.5L:3D",
+                              "12L:8D:1.5L:2.5D", "12L:8.5D:1.5L:2D","12L:9D:1.5L:1.5D"),
+                   labels = c("0", "7", "7.5", "8", "8.5", "9"),
+                   name = "Onset of 1.5 hr Light Pulse") +
+  geom_line(aes(group = bkgrnd, color = bkgrnd)) +
+  theme_bw() +
+  theme(text = element_text(size = 14, family = "sans", color = 'black'),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = 'top') +
+  scale_color_manual(name = '',
+                     values = c("be_px4" = "#00CD00", "uz" = "darkorchid"),
+                     labels = c("be_px4" = expression(italic(per)^"-/+"*"+"*italic(per)^"+"*"/"*italic(W)),
+                                "uz" = expression(italic(per)^"+/+"*"+"*italic(per)^"+"*"/"*italic(W)))) +
+  scale_fill_manual(name = '',
+                    values = c("be_px4" = "#00CD00", "uz" = "darkorchid")) +
+  guides(fill = 'none') +
+  annotate("text", x=4, y=0.8, label= "*", size = 4) +
+  annotate("text", x=5, y=0.8, label= "**", size = 4)
+p
+```
+Plot of the LD treatments 
+```{r}
+winter_exp = read.csv("../data/interruption_202212_matrix.csv")
+str(winter_exp)
+winter_exp$type = as.factor(winter_exp$type)
+winter_exp$treatment = as.factor(winter_exp$treatment)
+winter_exp$treatment = factor(winter_exp$treatment,
+                              levels = c(
+                                "12L:9D:1.5L:1.5D",
+                                "12L:8.5D:1.5L:2D",
+                                "12L:8D:1.5L:2.5D",
+                                "12L:7.5D:1.5L:3D",
+                                "12L:12D"
+                              ))
+# Plot using ggplot2
+p_winter_exp =ggplot(winter_exp, aes(y = treatment, xmin = start, xmax = end, fill = type)) +
+  geom_rect(aes(xmin = start, xmax = end,
+                ymin = as.numeric(treatment) - 0.48,
+                ymax = as.numeric(treatment) + 0.48),
+            alpha = 0.5) +
+  scale_fill_manual(values = c("light" = "yellow", "dark" = "black")) +
+  scale_x_continuous(breaks = seq(12, 24, by = 4), limits = c(0,24), expand = c(0,0),
+                     name = "Zeitgeber Time (hours)") +
+  scale_y_discrete(breaks = c("12L:9D:1.5L:1.5D",
+                                "12L:8.5D:1.5L:2D",
+                                "12L:8D:1.5L:2.5D",
+                                "12L:7.5D:1.5L:3D",
+                                "12L:12D"),
+                   labels = c("12L:9D:1.5L:1.5D" = "9",
+                                "12L:8.5D:1.5L:2D" = "8.5",
+                                "12L:8D:1.5L:2.5D" = "8",
+                                "12L:7.5D:1.5L:3D" = "7.5",
+                                "12L:12D" = "0"),
+                   name = "Treatment") +
+  theme_bw() +
+  theme(
+    text = element_text(size = 14, family = "sans", color = 'black'),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "top",
+    legend.title = element_blank(),
+    axis.ticks.y = element_blank()) +
+  guides(fill = 'none')
+
+
+p_winter_exp = p_winter_exp + theme(text = element_text(size = 14))
+
+final_winter_p = ggpubr::ggarrange(p, p_winter_exp, ncol = 2, align = 'hv')
+final_winter_p
+
+ggsave("../plots/figure3a.png", plot = final_winter_p, width = 6.5, height = 5.5, dpi = 800, units=c('in'), bg='white')
+
+lf_wt = ggarrange(p_lf, p_lf_exp, ncol = 2, align = 'hv', common.legend = TRUE, legend = 'top')
+winter_wt = ggpubr::ggarrange(p_wt, p_winter_exp, ncol = 2, align = 'hv', common.legend = TRUE, 
+                              legend = 'top')
+
+combined_interrupts = ggarrange(lf_wt, winter_wt, nrow = 2)
+ggsave("../plots/figureS3.png", plot = combined_interrupts, width = 6, height = 6.5, dpi = 600, units=c('in'), bg='white')
+
+
+```
+
+
+
+
