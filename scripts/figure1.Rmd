@@ -6,7 +6,7 @@ output: html_notebook
 Analyze ecotype x photoperiod variation in both seasonal (diapause incidence, PDD time) AND daily (activity phase, activity period length) of #O. nubilalis#, as visualized in Figure 1
 
 Read in associated packages
-```{r, quiet = TRUE}
+```{r, quiet=TRUE}
 library('car')
 library('emmeans')
 library('ggplot2')
@@ -19,11 +19,155 @@ library('tidyverse')
 
 p(diapause) = ecotype x photoperiod (Figure 1A)
 ```{r}
+ecb_dia <- read_csv("../data/diapause_incidence_202108.csv", 
+                    col_types = cols(Date = col_date(format = "%m/%d/%Y"), 
+                                     Strain = col_factor(levels = c("UZ", 
+                                                                    "BE",
+                                                                    "NH")))) %>%
+  mutate(diapause_inc = 1-Pupae/Total, Date = as.factor(Date)) %>%
+  mutate(adj_diapause_inc = 1-adj_Pupae/adj_Total)
+
+#remove NH population from analysis and model
+ecb_dia_filt <- ecb_dia  %>% filter(Photoperiod != 14.9) %>%
+  filter(Photoperiod != 15.0) %>%
+  filter(Strain != "NH") %>%  droplevels()
+
+ecb_dia_filt$Date <- as.factor(ecb_dia_filt$Date)
+
+#Remove 2021-08-25 outlier; use ecb_dia_filt for analysis
+ecb_dia_filt <- ecb_dia_filt %>% filter(Date != '2021-08-25') %>% droplevels()
+
+m1 <- glm(cbind(adj_Total-adj_Pupae, adj_Pupae) ~ Photoperiod*Strain,
+          family = binomial(link = 'logit'), data = ecb_dia_filt)
+summary(m1)
+car::Anova(m1)
+summary(m1)$coef[1,1]/summary(m1)$coef[2,1]*-1 #CPP
+
+#Create dataframe to use for predictions
+newdata = with(ecb_dia_filt, expand.grid(Photoperiod = seq(14.25, 16.5, by = 0.01),
+                                         Strain=unique(Strain)))
+m1_pred <- predict(m1, newdata,
+                   type = 'link', se = TRUE)
+m1_pred <- cbind(newdata, m1_pred)
+
+m1_pred <- within(m1_pred, {
+  prob_pred <- plogis(fit) %>% round(3)
+  LB <- plogis(fit - 1.96*se.fit) %>% round(3)
+  UB <- plogis(fit + 1.96*se.fit) %>% round(3)
+  })
+
+m1Pred_ecbRaw <- left_join(m1_pred, ecb_dia_filt)
+
+figure1a <-  ggplot(data = m1Pred_ecbRaw %>% filter(Strain != "NH"),
+                    aes(x = Photoperiod, y=1-adj_Pupae/adj_Total, color = Strain)) +
+  geom_point(position = position_jitter(width = 0.02, height = 0.02), size = 2, alpha = 0.5) + 
+  geom_line(aes(x = Photoperiod, y = prob_pred), size = 0.75) +
+  theme_bw() + ylab('Diapause Incidence') + xlab('Photoperiod (hours)') +
+  geom_segment(x=15.05,xend=15.05,y=0.0,yend=0.5, linetype="dashed", color = "black", size = 0.5) + #UZ
+  geom_segment(x=14.25,xend=15.05,y=0.5,yend=0.5, linetype="dashed", color = "black", size = 0.5) + #ALL
+  geom_segment(x=14.91,xend=14.91,y=0.0,yend=0.5, linetype="dashed", color = "black", size = 0.5) + #BE
+  geom_ribbon(aes(ymin = LB, ymax = UB, x=Photoperiod, fill = Strain), alpha = 0.2, colour = NA) +
+  scale_y_continuous(breaks = c(0.0, 0.25, 0.50, 0.75, 1.0),
+                     expand = c(0,0.00), limits = c(-0.02,1.02 ),
+                     labels = scales::percent_format()) +
+  scale_x_continuous(breaks = c(14.25, 15.00, 15.75, 16.50),
+                     expand = c(0.0,0.0),
+                     limits = c(14.17, 16.58)) +
+  theme_bw() + 
+  theme(text = element_text(size = 14, family = "sans", color = 'black'),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), legend.position = "top") +
+  scale_color_manual(values = c("UZ" = "#F8766D", "BE" = "#00BFC4"),
+                     labels = c("UZ" = "Univoltine",
+                                "BE" = "Bivoltine"),
+                     name = "") +
+  guides(fill = 'none')
+
+figure1a
 
 ```
 
 p(PDD) = ecotype x photoperiod (Figure 1B)
 ```{r}
+pdd_df <- read_csv("../data/diapause_pdd_202108.csv", 
+                    col_types = cols(Date = col_date(format = "%m/%d/%Y"), 
+                                    Photoperiod = col_number(), 
+                                    Strain = col_factor(levels = c("UZ","BE", "NH")),
+                                    Transfer = col_date(format = "%m/%d/%Y"))) %>% 
+  filter(Strain != "NH") %>%
+  droplevels()
+
+pdd_df_filt <- pdd_df %>% mutate(Location = NULL, Date = NULL, Transfer = NULL) %>%
+  reshape2::melt(id = c("Strain", "Photoperiod", "Replicate", "Total"),
+       measure = colnames(pdd_df)[8:ncol(pdd_df)],
+       na.rm = FALSE, variable.name = "Day", value.name = "Pupae")
+
+pdd_df_filt$Replicate <- as.factor(pdd_df_filt$Replicate)
+pdd_df_filt$Day <- as.numeric(as.character(pdd_df_filt$Day))
+pdd_df_filt$Pupae <- as.numeric(as.character(pdd_df_filt$Pupae))
+pdd_df_filt$Total <- as.numeric(as.character(pdd_df_filt$Total))
+
+pdd_df_filt <- pdd_df_filt %>% filter(Total != 0) %>% na.omit()
+pdd_df_filt$Strain = as.factor(pdd_df_filt$Strain)
+pdd_df_filt$Strain = relevel(pdd_df_filt$Strain, ref = 'UZ')
+
+m1_pdd <- glm(cbind(Pupae, Total-Pupae) ~ Day*Photoperiod + Photoperiod*Strain + Day*Strain,
+              family = binomial(link = 'logit'), data = pdd_df_filt)
+car::Anova(m1_pdd)
+
+pdd_new <- with(pdd_df_filt, expand.grid(Photoperiod = seq(14.25, 15.25, by = 0.5),
+                                          Day=seq(0,61,by=1), Strain = unique(Strain)))
+
+pdd_pred <- predict.glm(m1_pdd, pdd_new, type="response") %>% round(digits = 3)
+df_pred <- cbind(pdd_new, "Pupation" = pdd_pred)
+df_pred$Photoperiod <- as.factor(df_pred$Photoperiod)
+
+pdd_pred <- cbind(pdd_new, predict.glm(m1_pdd,
+                                           pdd_new,
+                                           type="response", se = TRUE))
+pdd_pred <- within(pdd_pred, {
+  prob_pred <- fit %>% round(3)
+  LB <- ifelse((fit - 3*qnorm(0.975)*se.fit %>% round(3))<0, 0,fit -  3*qnorm(0.975)*se.fit %>% round(3) )
+  UB <- ifelse((fit + 3*qnorm(0.975)*se.fit %>% round(3))>1, 1,fit + 3*qnorm(0.975)*se.fit %>% round(3) )
+  })
+
+df_pred <- rbind(filter(pdd_pred, Strain == "UZ"),
+                 filter(pdd_pred, Strain == "BE"))
+
+figure1b <- ggplot(data = df_pred,
+                          aes(x=Day, y = prob_pred, color = Strain)) + theme_bw() +
+  theme(axis.text.x = element_text(size = 14, family = 'sans')) +
+  theme(text = element_text(size = 14, family = 'sans')) +
+  theme(legend.position = "top", panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ylim(0, 1) + xlim(1, 61) +
+  scale_shape_manual(values=c(16, 2, 4)) +
+  geom_line(data = df_pred %>% filter(Photoperiod == 14.25),
+            aes(x=Day, y = prob_pred, color = Strain, linetype=as.factor(Photoperiod)), size = 0.75) +
+    scale_y_continuous(breaks = c(0.0, 0.25, 0.50, 0.75, 1.0),
+                     expand = c(0,0.00), limits = c(-0.02,1.02 ),
+                     labels = scales::percent_format(), name = "Cumultative Pupation") +
+  xlab("PDD Time (days)") +
+  scale_linetype_manual(values=c(1,3,6)) + 
+  geom_ribbon(data = df_pred %>% filter(Photoperiod == 14.25), 
+              aes(ymin = LB, ymax = UB, x=Day, fill = interaction(Strain, Photoperiod)), 
+              alpha = 0.2, colour = NA, show.legend = FALSE) +
+  guides(linetype = 'none') +
+  scale_color_manual(values = c("UZ" = "#F8766D", "BE" = "#00BFC4"),
+                     labels = c("UZ" = paste("Univoltine"),
+                                "BE" = paste("Bivoltine")),
+                     name = "")
+
+figure1b <- figure1b + geom_point(data = pdd_df_filt %>%
+                                                  filter(Photoperiod == 14.25),
+                                                aes(x = Day, y = Pupae/Total, color = Strain),
+                                                size = 2, alpha = 0.5,
+                                                position = position_jitter(width = 0.05, height = 0.05)) +
+  geom_segment(x=0,xend=38.3,y=0.5,yend=0.5, linetype="dashed", color = "black", size = 0.5) +
+  geom_segment(x=38.2,xend=38.2,y=0.0,yend=0.5, linetype="dashed", color = "black", size = 0.5) +
+  geom_segment(x=19.6,xend=19.6,y=0,yend=0.5, linetype="dashed", color = "black", size = 0.5) 
+
+figure1b
 
 ```
 
