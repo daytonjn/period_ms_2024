@@ -58,7 +58,7 @@ m1_pred <- within(m1_pred, {
 
 m1Pred_ecbRaw <- left_join(m1_pred, ecb_dia_filt)
 
-figure1a <-  ggplot(data = m1Pred_ecbRaw %>% filter(Strain != "NH"),
+figure1a <-  ggplot(data = m1Pred_ecbRaw,
                     aes(x = Photoperiod, y=1-adj_Pupae/adj_Total, color = Strain)) +
   geom_point(position = position_jitter(width = 0.02, height = 0.02), size = 2, alpha = 0.5) + 
   geom_line(aes(x = Photoperiod, y = prob_pred), size = 0.75) +
