@@ -1,0 +1,126 @@
+---
+title: "figure4"
+output: html_notebook
+---
+
+#Load packages
+```{r}
+library(readr)
+library(tidyverse)
+library(bbmle)      # for ICtab()
+library(pscl)       # for zi models
+library(MASS)       # for glm.nb()
+library(car)        # for Anova()
+library(lme4)       # for lmer() and glmer() 
+library(emmeans)    # for multiple comparisons!
+library(readr)
+
+```
+
+#p(diapause) = [licl]*background
+
+```{r}
+ecb_licl <- read_csv("../data/drugs_be_uz.csv", 
+                     col_types = cols(Concentration = col_number(),
+                                      Year = col_number(),
+                                      Larvae = col_number(), Pupae = col_number(),
+                                      Total = col_number(),
+                                      Strain = col_factor(levels = c("BE", "UZ")),
+                                      Treatment = col_factor(levels = c("Control","LiCl",
+                                                                        "NaCl","Caffeine",
+                                                                        "Cinammon","LiHOac")))) %>%
+  mutate(diapause_inc = 1-Pupae/Total)
+
+#filter to retain only LiCl (this was tested across all photoperiods and ecotypes)
+ecb_licl_total <- ecb_licl %>% ungroup() %>% 
+  group_by(Strain, Photoperiod, Treatment, Concentration) %>% 
+  summarize(Pupae = sum(Pupae),
+            Larvae = sum(Larvae),
+            Total = sum(Total),  
+            Mean_Dia = mean(1-sum(Pupae)/sum(Total))) %>%     # calculates the total number of observations
+  ungroup() %>% as.data.frame()
+
+
+ecb_filt <- ecb_licl %>% filter(Treatment == "Control" | Treatment == "LiCl")
+ecb_filt$Concentration = as.numeric(ecb_filt$Concentration)
+ecb_filt$log_concentration = log(ecb_filt$Concentration + 1e-8)
+
+```
+
+#Full Dataset (ecb_filt): Model Construction
+```{r}
+
+m1 <- glm(cbind(Larvae, Pupae) ~ Photoperiod*Strain*Concentration,
+          family = binomial(link = 'logit'), data = ecb_filt)
+m2 <- glm(cbind(Larvae, Pupae) ~ Photoperiod+Strain*Concentration,
+          family = binomial(link = 'logit'), data = ecb_filt) #Best model
+m3 <- glm(cbind(Larvae, Pupae) ~ Photoperiod+Strain+Concentration,
+          family = binomial(link = 'logit'), data = ecb_filt)
+
+ICtab(m1, m2, m3)
+
+car::Anova(m2)
+summary(m2)
+
+```
+
+#Full Dataset (ecb_filt): Predicted Fit
+```{r}
+m2 <- glm(cbind(Larvae, Pupae) ~ -1 + Photoperiod+Strain*Concentration,
+          family = binomial(link = 'logit'), data = ecb_filt)
+
+newData <- with(ecb_filt, expand.grid(Photoperiod = seq(14.9, 15.0, by= 0.001), Concentration=c(0, 10, 25),
+                                            Strain = unique(ecb_filt$Strain)))
+newData$Concentration <- as.numeric(newData$Concentration)
+newData$Photoperiod <- as.numeric(newData$Photoperiod)
+m2_pred <- predict(m3, newData,
+                type = 'response', se = TRUE)
+
+df_pred <- cbind(newData, m2_pred)
+
+
+df_pred <- within(df_pred, {
+  Pred <- fit %>% round(3)
+  LB <- fit - 1.96*se.fit %>% round(3)
+  UB <- fit + 1.96*se.fit %>% round(3)
+  
+})
+
+df_pred_ECBraw <- left_join(df_pred, ecb_filt)
+```
+
+#Full Dataset (ecb_filt = df_pred_ECBraw): Plot Predicted Fit
+```{r}
+df_pred_ECBraw$Concentration <- as.numeric(df_pred_ECBraw$Concentration)
+
+facet_labels = c("BE"="Bivoltine", "UZ"="Univoltine")
+
+p_licl_all = ggplot(data = df_pred_ECBraw, aes(x = Photoperiod,
+                                  color = as.factor(Concentration),
+                                  group = as.factor(Concentration),
+                                  fill = as.factor(Concentration))) +
+  geom_jitter(data = ecb_filt, aes(x= Photoperiod, y = diapause_inc,
+                                   color=as.factor(Concentration)), size = 2,
+              width = 0.005, height = 0.001) +
+  facet_wrap(~Strain, labeller = as_labeller(facet_labels)) +
+  geom_ribbon(aes(ymin = LB, ymax = UB), alpha = 0.1, colour = NA, show.legend = FALSE) +
+  geom_line(aes(y = fit), size = 0.75) +
+  theme_bw() +
+  scale_y_continuous(name = "Diapause Incidence",
+                     limits = c(0,1), breaks = seq(0,1,by=0.2),
+                     labels = scales::percent_format()) +
+  scale_x_continuous(name = "Photoperiod (hours)",
+                     breaks = seq(14.9, 15.0, by = 0.1),
+                     expand = c(0,0), limits = c(14.88, 15.02)) +
+  theme(text = element_text(size = 14, family = "sans", color = 'black'),
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      legend.position = c(0.9, 0.25),
+      legend.title.align = 0.8) + labs(color = "[LiCl] mM") +
+  guides(fill = 'none')
+
+p_licl_all
+
+ggsave(filename = "../plots/figure4.png", p_licl_all,
+         width = 6, height = 4, dpi = 800, units = "in", device='png')
+
+```
