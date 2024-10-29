@@ -255,7 +255,7 @@ figure1 = ggarrange(figure1a,figure1b,
                     ncol = 2, nrow = 2,
                     common.legend = TRUE, legend = 'top', align = 'hv')
 
-
+figure1
 ggsave("../plots/figure1.png", plot = figure1, width = 6, height = 6, dpi = 600, units=c('in'),
                bg='white')
 ```
