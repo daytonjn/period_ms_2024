@@ -1,6 +1,6 @@
 # Period manuscript
 
-**Description:** Scripts to reproduce the analyses reported in Dayton & Dopman ([2024](https://www.biorxiv.org/content/10.1101/2024.11.02.621642v1)), The *period* gene regulates daily and seasonal timing in *Ostrinia nubilalis*.
+**Description:** Scripts to reproduce the analyses reported in Dayton & Dopman (2024), [The *period* gene regulates daily and seasonal timing in *Ostrinia nubilalis*](https://www.biorxiv.org/content/10.1101/2024.11.02.621642v1).
 
 **Purpose:** Prior research in the European corn borer (*Ostrinia nubilalis*) associated ecotype differences in seasonal post-diapause development (PDD) time, a key factor determining voltinism (number of generations/growing season), with genetic variation in the circadian clock gene *period*. Here, I integrated behavioral assays, transcriptome profiling, and targeted genetic/pharmacological manipulations to investigate *per*’s contribute to both daily and seasonal biological rhythms.
 
