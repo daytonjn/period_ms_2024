@@ -13,23 +13,23 @@
 
 <ins>Workflow:</ins>
   1) Processing Amplicon-seq data to genotype mutant vs. wildtype individuals (GATK pipeline; to account for different zygosity of Z chr, call variants separately m v. f)
-     - map_reads.sh (input: .fastq, barcodes_fwd.fasta, barcodes_rev.fasta)
-     - haplogen_females.sh & haplogen_males.sh & haplogen_unknown.sh (input: male_seqs.txt, female_seqs.txt, unknown_seqs.txt)
-     - Output: VCFs
-  2) Processing RNA-seq data (multiplexed 3'-end mRNA-seq) to identify cycling genes & DEG circadian clock genes
-     - 01_remove_rrna_from_gff.sh
-     - 02_index_ref_norrna.sh
-     - 03_map_reads_norrna.sh
-     - analysis_brbseq.R
-     - Output: Gene/Count Matrix & DEG analysis
+     - map_reads.sh (input: .fastq, barcodes_fwd.fasta, barcodes_rev.fasta; hisat2)
+     - haplogen_females.sh & haplogen_males.sh & haplogen_unknown.sh (input: male_seqs.txt, female_seqs.txt, unknown_seqs.txt; GATK)
+     - **Output:** VCFs
+  2) Processing RNA-seq data (multiplexed 3'-end RNA-seq with inline barcode) to identify cycling genes & DEG circadian clock genes
+     - 01_remove_rrna_from_gff.sh (grep)
+     - 02_index_ref_norrna.sh (STAR)
+     - 03_map_reads_norrna.sh (STAR/STARsolo) 
+     - analysis_brbseq.R (limma-voom & edgeR, limorhyde)
+     - **Output:** Gene/Count Matrix & DEG analysis
   3) Phenotypic differences among wild-type individuals
      - analysis_ecotypes.Rmd
      - analysis_interruptions.Rmd
      - analysis_diapauseXphoto.Rmd
      - analysis_licl.Rmd
-     - Outputs: Results & Figs
+     - **Outputs:** GLMs & figs
   5) Phenotype differences among mutant vs. wild-type individuals
      - analysis_interruptions.Rmd
      - analysis_per.Rmd
-     - Outputs: Results & Figs
+     - **Outputs:** GLMs & figs
      
