@@ -4,7 +4,7 @@
 
 **Purpose:** Prior research in the European corn borer (*Ostrinia nubilalis*) associated ecotype differences in seasonal post-diapause development (PDD) time, a key factor determining voltinism (number of generations/growing season), with genetic variation in the circadian clock gene *period*. Here, I integrated behavioral assays, transcriptome profiling, and targeted genetic/pharmacological manipulations to investigate *per*’s contribute to both daily and seasonal biological rhythms.
 
-**Workflow:**
+**Analysis Workflow:**
   1) Processing Amplicon-seq data to genotype mutant vs. wildtype individuals (GATK pipeline; to account for different zygosity of Z chr, call variants separately m v. f)
      - map_reads.sh (input: .fastq, barcodes_fwd.fasta, barcodes_rev.fasta; hisat2)
      - haplogen_females.sh & haplogen_males.sh & haplogen_unknown.sh (input: male_seqs.txt, female_seqs.txt, unknown_seqs.txt; GATK)
